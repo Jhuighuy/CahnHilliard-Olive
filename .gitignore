@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Output files
+esch
+out/*
