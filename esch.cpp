@@ -85,7 +85,7 @@ void step_heat2(ptrdiff_t n, real_t dx, real_t dt,
 
 } // step_heat2
 
-/// Double-well function.
+/// Stabilized double-well function.
 constexpr real_t W(real_t phi) {
   if (phi < -1.0) {
     return sqr(phi + 1.0);
@@ -95,15 +95,15 @@ constexpr real_t W(real_t phi) {
   return 0.25*sqr(sqr(phi) - 1.0);
 } // W
 
-/// Double-well function derivative.
-constexpr real_t W_prime(real_t phi) {
+/// Stabilized double-well function derivative.
+constexpr real_t dWdPhi(real_t phi) {
   if (phi < -1.0) {
     return 2.0*(phi + 1.0);
   } else if (phi > +1.0) {
     return 2.0*(phi - 1.0);
   }
   return phi*(sqr(phi) - 1.0);
-} // W_prime
+} // dWdPhi
 
 /// Compute a time-step of the Cahn-Hilliard equation: 
 /// δϕ/δt = Δμ, μ = W'(ϕ) - ε⋅Δϕ with the explicit Olive(1) scheme.
@@ -114,7 +114,7 @@ void step_cahn_hilliard(ptrdiff_t n, real_t dx, real_t dt, cGrid& phi,
   // Chemical ponential: μⁿ ← W'(ϕⁿ) - ε⋅Δₕϕⁿ.
 #pragma omp parallel for schedule(static) default(none) shared(n, dx, mu, phi, eps)
   for (ptrdiff_t i = 0; i < n; ++i) {
-    mu[i] = W_prime(phi[i]) - (eps/sqr(dx))*(phi[i+1] - 2.0*phi[i] + phi[i-1]);
+    mu[i] = dWdPhi(phi[i]) - (eps/sqr(dx))*(phi[i+1] - 2.0*phi[i] + phi[i-1]);
   }
 
   // Heat equation stabilization step: νⁿ ← μⁿ + S/2⋅δt⋅Δₕμⁿ.
@@ -138,14 +138,14 @@ int main() {
   std::cout.precision(std::numeric_limits<real_t>::max_digits10);
 
   // Constants.
-  ptrdiff_t n = 200;
+  ptrdiff_t n = 2000;
   const real_t pi = 4.0*std::atan(1.0);
   const real_t length = 2.0*pi;
   cGrid phi(n), mu(n), nu(n), out_phi(n);
 
   // Setup grid.
   const real_t dx = length/n;
-  const real_t eps = sqr(2*dx*sqrt(dx));
+  const real_t eps = sqr(1.0e-2);
   const real_t S = 2.0;
   const real_t dt = std::min(0.5*sqr(dx)/S, 0.125*sqr(sqr(dx))/eps);
 
@@ -158,7 +158,7 @@ int main() {
 #if _OPENMP
   double time = omp_get_wtime();
 #endif
-  const ptrdiff_t output_freq = 100, num_steps = 200;
+  const ptrdiff_t output_freq = 30000, num_steps = 200;
   for (ptrdiff_t k = 0; k <= output_freq*num_steps; ++k) {
     if (k%output_freq == 0) {
       const ptrdiff_t time_step = k/output_freq;
